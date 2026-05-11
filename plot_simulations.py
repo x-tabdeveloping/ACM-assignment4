@@ -1,19 +1,23 @@
 from collections import defaultdict
 from pathlib import Path
 
+import jax
 import jax.numpy as jnp
 import joblib
 import numpyro.distributions as dist
 import plotly.express as px
+import plotly.graph_objects as go
 from jax.scipy.stats import gaussian_kde
 from plotly.subplots import make_subplots
 
+from simulation_study import simulate_experiment
+from utils.agents import naive_bayes, simulate_behaviour
 from utils.plots import plot_predictives, plot_recovery
 
 figures_dir = Path("figures")
 figures_dir.mkdir(exist_ok=True)
 
-sim_files = list(Path("results/").glob("simulation_*.joblib"))
+sim_files = list(Path("results/second_experiment/").glob("simulation_*.joblib"))
 file_ids = jnp.array([int(sf.stem.split("_")[1]) for sf in sim_files])
 order = jnp.argsort(file_ids)
 data = defaultdict(list)
@@ -76,3 +80,60 @@ fig = fig.update_layout(
     template="plotly_white", margin=dict(t=20, l=10, b=10, r=10), width=1000, height=400
 )
 fig.show()
+
+fig = go.Figure()
+key = jax.random.key(42)
+key, subkey = jax.random.split(key)
+n_rules = 5
+n_trials_per_rule = 100
+xs, ys = simulate_experiment(
+    subkey, n_rules=n_rules, n_trials_per_rule=n_trials_per_rule
+)
+lrs = jnp.linspace(0, 1, 15)
+colors = px.colors.sample_colorscale(px.colors.get_colorscale("Viridis"), lrs.tolist())
+for color, lr in zip(colors, lrs):
+    agent = naive_bayes.add_input(xs, ys)
+    key, subkey = jax.random.split(key)
+    cs, agent_trace = simulate_behaviour(
+        subkey,
+        agent,
+        parameters=dict(lr=lr),
+    )
+    wins = jnp.all(ys == cs, axis=1)
+    trials = jnp.arange(len(wins))
+    win_rate = jnp.cumsum(wins) / (trials + 1)
+    fig = fig.add_scatter(
+        x=trials,
+        y=win_rate,
+        name=f"lr={lr:.2f}",
+        line=dict(color=color),
+        showlegend=False,
+    )
+for i in range(n_rules):
+    if i != 0:
+        fig = fig.add_vline(
+            x=i * 100,
+            line=dict(
+                width=2,
+                color="black",
+                dash="dash",
+            ),
+            annotation_text=f"Rule {i+1}",
+        )
+# I add a dummy trace so I can display the color scale
+fig = fig.add_heatmap(opacity=0.0, coloraxis="coloraxis", z=[[0, 1], [0, 1]])
+fig = fig.update_coloraxes(
+    colorbar_title="Learning rate",
+    colorscale="Viridis",
+    showscale=True,
+    cmin=0.0,
+    cmax=1.0,
+)
+fig = fig.update_yaxes(title="Win rate", range=(0, 1))
+fig = fig.update_xaxes(title="Trial")
+fig = fig.update_layout(
+    template="plotly_white", margin=dict(t=20, l=10, b=10, r=10), width=1000, height=400
+)
+fig.show()
+
+data.keys()
