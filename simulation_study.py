@@ -6,7 +6,7 @@ import joblib
 import numpyro.distributions as dist
 from tqdm import tqdm
 
-from utils.agents import naive_bayes, simulate_behaviour
+from utils.agents import naive_bayes, sample_predictives, simulate_behaviour
 
 
 def match_rule(x, rule):
@@ -47,22 +47,8 @@ def simulate_experiment(rng_key, n_trials_per_rule=100, n_features=5, n_rules=5)
     return xs, ys
 
 
-def sample_predictives(rng_key, model, samples):
-    key = rng_key
-    posterior = samples
-    key, subkey = jax.random.split(rng_key)
-    posterior_predictive = model.sample_predictive(subkey, posterior_samples=posterior)
-    posterior_predictive["obs"] = jnp.argmax(
-        posterior_predictive["obs"], axis=-1
-    ).astype(int)
-    key, subkey = jax.random.split(key)
-    prior_predictive = model.sample_predictive(subkey)
-    prior_predictive["obs"] = jnp.argmax(prior_predictive["obs"], axis=-1).astype(int)
-    return prior_predictive, posterior_predictive
-
-
 def main():
-    res_dir = Path("results/")
+    res_dir = Path("results/simulations/")
     res_dir.mkdir(exist_ok=True, parents=True)
     key = jax.random.key(0)
     lrs = jnp.linspace(0, 1.0, 15)

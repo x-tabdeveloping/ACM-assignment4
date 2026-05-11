@@ -10,6 +10,20 @@ from numpyro.handlers import seed, substitute, trace
 numpyro.set_host_device_count(4)
 
 
+def sample_predictives(rng_key, model, samples):
+    key = rng_key
+    posterior = samples
+    key, subkey = jax.random.split(rng_key)
+    posterior_predictive = model.sample_predictive(subkey, posterior_samples=posterior)
+    posterior_predictive["obs"] = jnp.argmax(
+        posterior_predictive["obs"], axis=-1
+    ).astype(int)
+    key, subkey = jax.random.split(key)
+    prior_predictive = model.sample_predictive(subkey)
+    prior_predictive["obs"] = jnp.argmax(prior_predictive["obs"], axis=-1).astype(int)
+    return prior_predictive, posterior_predictive
+
+
 def trace_conditionals(xs, labels, init_conc, lr):
     def _update(c, d):
         c = c.at[d["l"]].add(lr * d["x"])

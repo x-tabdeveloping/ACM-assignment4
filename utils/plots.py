@@ -6,13 +6,17 @@ from plotly.subplots import make_subplots
 from tqdm import tqdm
 
 
-def plot_recovery(posterior_samples, true_lrs) -> go.Figure:
+def plot_forest(posterior_samples, true_lrs=None) -> go.Figure:
     fig = go.Figure()
-    for samples, true_lr in zip(posterior_samples, true_lrs):
+    for i, samples in enumerate(posterior_samples):
         lr_median = jnp.median(samples["lr"])
         lr_lower, lr_upper = diagnostics.hpdi(samples["lr"], prob=0.95)
+        if true_lrs is not None:
+            x = true_lrs[i]
+        else:
+            x = i
         fig.add_scatter(
-            x0=true_lr,
+            x0=x,
             y=[lr_median],
             error_y=dict(
                 type="data",
@@ -26,13 +30,14 @@ def plot_recovery(posterior_samples, true_lrs) -> go.Figure:
             mode="markers",
             marker=dict(size=12),
         )
-    fig.add_scatter(
-        x=[0, 1],
-        y=[0, 1],
-        mode="lines",
-        line=dict(color="black", dash="dash", width=2.0),
-        name="True Learning Rate",
-    )
+    if true_lrs is not None:
+        fig.add_scatter(
+            x=[0, 1],
+            y=[0, 1],
+            mode="lines",
+            line=dict(color="black", dash="dash", width=2.0),
+            name="True Learning Rate",
+        )
     fig = fig.update_layout(template="plotly_white", margin=dict(t=20, b=0, l=0, r=0))
     return fig
 
@@ -41,9 +46,9 @@ def plot_predictives(
     prior_predictives: list,
     posterior_predictives: list,
     choices: list,
-    true_lrs: list,
+    names: list,
 ):
-    model_names = [f"lr={lr:.2f}" for lr in true_lrs]
+    model_names = names
     subplot_titles = []
     for t in ["prior", "posterior"]:
         for model_name in model_names:
